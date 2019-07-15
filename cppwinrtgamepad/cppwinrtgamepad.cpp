@@ -17,6 +17,7 @@ class GamepadManager
     struct GamepadWithButtonState
     {
         Gamepad gamepad;
+        std::wstring name;
         bool buttonAWasPressedLastFrame = false;
     };
 
@@ -48,17 +49,6 @@ public:
     {
         std::lock_guard<std::mutex> guard(m_mutex);
 
-        auto rawController = RawGameController::FromGameController(args);
-        uint16_t vid = rawController.HardwareVendorId();
-        uint16_t pid = rawController.HardwareProductId();
-        winrt::hstring name = rawController.DisplayName();
-
-        std::cout << "Connected gamepad: ";
-        std::wcout << name.c_str();
-        std::cout << " (" 
-            << std::hex << std::setw(4) << std::setfill('0') << vid << ":"
-            << std::hex << std::setw(4) << std::setfill('0') << pid << ")" << std::endl;
-
         auto it = std::find_if(m_gamepads.begin(), m_gamepads.end(), [&](GamepadWithButtonState& gamepadWithState)
         {
             return gamepadWithState.gamepad == args;
@@ -68,28 +58,32 @@ public:
         if (it != m_gamepads.end())
             return;
 
-        GamepadWithButtonState newGamepad = { args, false };
+        auto rawController = RawGameController::FromGameController(args);
+        uint16_t vid = rawController.HardwareVendorId();
+        uint16_t pid = rawController.HardwareProductId();
+        winrt::hstring name = rawController.DisplayName();
+
+        GamepadWithButtonState newGamepad = { args, name.c_str(), false };
         m_gamepads.push_back(newGamepad);
+
+        std::wcout << "Connected: " << newGamepad.name;
+        std::wcout << " ("
+            << "0x" << std::hex << std::setw(4) << std::setfill(L'0') << vid << ":"
+            << "0x" << std::hex << std::setw(4) << std::setfill(L'0') << pid << ")" << std::endl;
     }
 
     void OnGamepadRemoved(winrt::Windows::Foundation::IInspectable, Gamepad const& args)
     {
         std::lock_guard<std::mutex> guard(m_mutex);
 
-        auto rawController = RawGameController::FromGameController(args);
-        uint16_t vid = rawController.HardwareVendorId();
-        uint16_t pid = rawController.HardwareProductId();
-        winrt::hstring name = rawController.DisplayName();
-
-        std::cout << "Disconnected gamepad: ";
-        std::wcout << name.c_str();
-        std::cout << " ("
-            << std::hex << std::setw(4) << std::setfill('0') << vid << ":"
-            << std::hex << std::setw(4) << std::setfill('0') << pid << ")" << std::endl;
-
         m_gamepads.erase(std::remove_if(m_gamepads.begin(), m_gamepads.end(), [&](GamepadWithButtonState& gamepadWithState)
         {
-            return gamepadWithState.gamepad == args;
+            if (gamepadWithState.gamepad != args)
+                return false;
+
+            std::wcout << "Disconnected: " << gamepadWithState.name << std::endl;
+
+            return true;
         }), m_gamepads.end());
     }
 
@@ -97,7 +91,6 @@ public:
     {
         std::lock_guard<std::mutex> guard(m_mutex);
 
-        int i = 0;
         // Check for new input state since the last frame.
         for (GamepadWithButtonState& gamepadWithButtonState : m_gamepads)
         {
@@ -105,21 +98,10 @@ public:
             bool buttonDownThisUpdate = ((reading.Buttons & GamepadButtons::A) == GamepadButtons::A);
             if (buttonDownThisUpdate && !gamepadWithButtonState.buttonAWasPressedLastFrame)
             {
-                std::cout << "Button A pressed on gamepad " << i << std::endl;
+                std::wcout << "Button A pressed on: " << gamepadWithButtonState.name << std::endl;
             }
             gamepadWithButtonState.buttonAWasPressedLastFrame = buttonDownThisUpdate;
-            ++i;
         }
-
-        /*
-        for (Gamepad const& gamepad : Gamepad::Gamepads())
-        {
-            GamepadReading reading = gamepad.GetCurrentReading();
-            if (((reading.Buttons & GamepadButtons::A) == GamepadButtons::A))
-            {
-                printf("Button A pressed on gamepad %d\n", i);
-            }
-        }*/
     }
 };
 

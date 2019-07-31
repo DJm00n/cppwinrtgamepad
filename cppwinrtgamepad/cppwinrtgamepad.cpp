@@ -4,6 +4,7 @@
 #include <winrt/Windows.Gaming.Input.h>
 
 #include <iostream>
+#include <sstream>
 #include <iomanip>
 #include <vector>
 #include <mutex>
@@ -11,6 +12,13 @@
 
 using namespace winrt::Windows::Foundation;
 using namespace winrt::Windows::Gaming::Input;
+
+static std::wstring IntToHexString(uint16_t in)
+{
+    std::wstringstream sstream;
+    sstream << L"0x" << std::hex << std::setw(4) << std::setfill(L'0') << in;
+    return sstream.str();
+};
 
 class GamepadManager
 {
@@ -24,61 +32,60 @@ class GamepadManager
     std::vector<GamepadWithButtonState> m_gamepads;
     std::mutex m_mutex;
 
-    winrt::event_token m_gamepadAddedEventToken;
-    winrt::event_token m_gamepadRemovedEventToken;
+    Gamepad::GamepadAdded_revoker m_AddedRevoker;
+    Gamepad::GamepadRemoved_revoker m_RemovedRevoker;
 
 public:
     GamepadManager()
     {
-        m_gamepadAddedEventToken = Gamepad::GamepadAdded(bind(&GamepadManager::OnGamepadAdded, this, std::placeholders::_1, std::placeholders::_2));
-        m_gamepadRemovedEventToken = Gamepad::GamepadRemoved(bind(&GamepadManager::OnGamepadRemoved, this, std::placeholders::_1, std::placeholders::_2));
+        m_AddedRevoker = Gamepad::GamepadAdded(winrt::auto_revoke, bind(&GamepadManager::OnGamepadAdded, this, std::placeholders::_1, std::placeholders::_2));
+        m_RemovedRevoker = Gamepad::GamepadRemoved(winrt::auto_revoke, bind(&GamepadManager::OnGamepadRemoved, this, std::placeholders::_1, std::placeholders::_2));
 
-        for (Gamepad const& gamepad : Gamepad::Gamepads())
+        Collections::IVectorView<Gamepad> gamepads = Gamepad::Gamepads();
+        for (const Gamepad& gamepad : gamepads)
         {
             OnGamepadAdded(nullptr, gamepad);
         }
     }
 
-    ~GamepadManager()
-    {
-        Gamepad::GamepadAdded(m_gamepadAddedEventToken);
-        Gamepad::GamepadRemoved(m_gamepadRemovedEventToken);
-    }
-
-    void OnGamepadAdded(winrt::Windows::Foundation::IInspectable, Gamepad const& args)
+    void OnGamepadAdded(IInspectable const& /* sender */, Gamepad const& gamepad)
     {
         std::lock_guard<std::mutex> guard(m_mutex);
 
         auto it = std::find_if(m_gamepads.begin(), m_gamepads.end(), [&](GamepadWithButtonState& gamepadWithState)
         {
-            return gamepadWithState.gamepad == args;
+            return gamepadWithState.gamepad == gamepad;
         });
 
         // This gamepad is already in the list.
         if (it != m_gamepads.end())
             return;
 
-        auto rawController = RawGameController::FromGameController(args);
-        uint16_t vid = rawController.HardwareVendorId();
-        uint16_t pid = rawController.HardwareProductId();
-        winrt::hstring name = rawController.DisplayName();
+        std::wstring name(L"Generic Xbox Gamepad");
 
-        GamepadWithButtonState newGamepad = { args, name.c_str(), false };
-        m_gamepads.push_back(newGamepad);
+        RawGameController rawController = RawGameController::FromGameController(gamepad);
+        if (rawController)
+        {
+            name = rawController.DisplayName().c_str();
+            name.append(L" (VID:")
+                .append(IntToHexString(rawController.HardwareVendorId()))
+                .append(L" PID:")
+                .append(IntToHexString(rawController.HardwareProductId()))
+                .append(L")");
+        }
 
-        std::wcout << "Connected: " << newGamepad.name;
-        std::wcout << " ("
-            << "0x" << std::hex << std::setw(4) << std::setfill(L'0') << vid << ":"
-            << "0x" << std::hex << std::setw(4) << std::setfill(L'0') << pid << ")" << std::endl;
+        m_gamepads.emplace_back({ gamepad, name, false });
+
+        std::wcout << "Connected: " << name << std::endl;
     }
 
-    void OnGamepadRemoved(winrt::Windows::Foundation::IInspectable, Gamepad const& args)
+    void OnGamepadRemoved(IInspectable const& /* sender */, Gamepad const& gamepad)
     {
         std::lock_guard<std::mutex> guard(m_mutex);
 
         m_gamepads.erase(std::remove_if(m_gamepads.begin(), m_gamepads.end(), [&](GamepadWithButtonState& gamepadWithState)
         {
-            if (gamepadWithState.gamepad != args)
+            if (gamepadWithState.gamepad != gamepad)
                 return false;
 
             std::wcout << "Disconnected: " << gamepadWithState.name << std::endl;
@@ -95,6 +102,7 @@ public:
         for (GamepadWithButtonState& gamepadWithButtonState : m_gamepads)
         {
             GamepadReading reading = gamepadWithButtonState.gamepad.GetCurrentReading();
+
             bool buttonDownThisUpdate = ((reading.Buttons & GamepadButtons::A) == GamepadButtons::A);
             if (buttonDownThisUpdate && !gamepadWithButtonState.buttonAWasPressedLastFrame)
             {

@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#define _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
+
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Gaming.Input.h>
 
@@ -9,14 +11,24 @@
 #include <vector>
 #include <mutex>
 #include <chrono>
+#include <codecvt>
 
 using namespace winrt::Windows::Foundation;
 using namespace winrt::Windows::Gaming::Input;
 
-static std::wstring IntToHexString(uint16_t in)
+std::string WStringToString(const std::wstring& wstr)
 {
-    std::wstringstream sstream;
-    sstream << L"0x" << std::hex << std::setw(4) << std::setfill(L'0') << in;
+    using convert_type = std::codecvt_utf8<wchar_t>;
+    std::wstring_convert<convert_type, wchar_t> converter;
+
+    return converter.to_bytes(wstr);
+}
+
+std::string IntToHexString(uint16_t in)
+{
+    std::stringstream sstream;
+    sstream << "0x" << std::hex << std::setw(4) << std::setfill('0') << in;
+
     return sstream.str();
 };
 
@@ -25,8 +37,8 @@ class GamepadManager
     struct GamepadWithButtonState
     {
         Gamepad gamepad;
-        std::wstring name;
-        bool buttonAWasPressedLastFrame = false;
+        std::string name;
+        uint64_t timestamp;
     };
 
     std::vector<GamepadWithButtonState> m_gamepads;
@@ -61,22 +73,25 @@ public:
         if (it != m_gamepads.end())
             return;
 
-        std::wstring name(L"Generic Xbox Gamepad");
+        std::string name("Generic Xbox Gamepad");
+        std::string vidpid("(VID:0x0000 PID:0x0000)");
 
         RawGameController rawController = RawGameController::FromGameController(gamepad);
         if (rawController)
         {
-            name = rawController.DisplayName().c_str();
-            name.append(L" (VID:")
+            name = WStringToString(rawController.DisplayName().c_str());
+
+            vidpid.clear();
+            vidpid.append("(VID:")
                 .append(IntToHexString(rawController.HardwareVendorId()))
-                .append(L" PID:")
+                .append(" PID:")
                 .append(IntToHexString(rawController.HardwareProductId()))
-                .append(L")");
+                .append(")");
         }
 
-        m_gamepads.emplace_back(GamepadWithButtonState { gamepad, name, false });
+        m_gamepads.emplace_back(GamepadWithButtonState { gamepad, name, 0 });
 
-        std::wcout << "Connected: " << name << std::endl;
+        std::cout << "Connected: " << name << " " << vidpid <<  std::endl;
     }
 
     void OnGamepadRemoved(IInspectable const& /* sender */, Gamepad const& gamepad)
@@ -88,7 +103,7 @@ public:
             if (gamepadWithState.gamepad != gamepad)
                 return false;
 
-            std::wcout << "Disconnected: " << gamepadWithState.name << std::endl;
+            std::cout << "Disconnected: " << gamepadWithState.name << std::endl;
 
             return true;
         }), m_gamepads.end());
@@ -103,12 +118,12 @@ public:
         {
             GamepadReading reading = gamepadWithButtonState.gamepad.GetCurrentReading();
 
-            bool buttonDownThisUpdate = ((reading.Buttons & GamepadButtons::A) == GamepadButtons::A);
-            if (buttonDownThisUpdate && !gamepadWithButtonState.buttonAWasPressedLastFrame)
+            if (reading.Timestamp != gamepadWithButtonState.timestamp)
             {
-                std::wcout << "Button A pressed on: " << gamepadWithButtonState.name << std::endl;
+                bool pressedA = ((reading.Buttons & GamepadButtons::A) == GamepadButtons::A);
+                std::cout << gamepadWithButtonState.name << ": " << "Timestamp=" << reading.Timestamp << ", PressedA=" << pressedA << std::endl;
+                gamepadWithButtonState.timestamp = reading.Timestamp;
             }
-            gamepadWithButtonState.buttonAWasPressedLastFrame = buttonDownThisUpdate;
         }
     }
 };
@@ -124,6 +139,6 @@ int main()
     while (true)
     {
         gamepads.Update();
-        std::this_thread::sleep_for(200ms);
+        std::this_thread::sleep_for(100ms);
     }
 }

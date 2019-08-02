@@ -74,7 +74,7 @@ public:
                 .append(L")");
         }
 
-        m_gamepads.emplace_back({ gamepad, name, false });
+        m_gamepads.emplace_back(GamepadWithButtonState { gamepad, name, false });
 
         std::wcout << "Connected: " << name << std::endl;
     }

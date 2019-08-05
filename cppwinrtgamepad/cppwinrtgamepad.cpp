@@ -1,7 +1,5 @@
 #include "pch.h"
 
-#define _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
-
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Gaming.Input.h>
 
@@ -11,27 +9,24 @@
 #include <vector>
 #include <mutex>
 #include <chrono>
-#include <codecvt>
 #include <functional>
 
 using namespace winrt::Windows::Foundation;
 using namespace winrt::Windows::Gaming::Input;
 
-std::string WStringToString(const std::wstring& wstr)
+template<typename T> std::string to_hex_string(const T& t)
 {
-    using convert_type = std::codecvt_utf8<wchar_t>;
-    std::wstring_convert<convert_type, wchar_t> converter;
-
-    return converter.to_bytes(wstr);
+    std::stringstream ss;
+    ss << "0x" << std::hex << std::setw(4) << std::setfill('0') << t;
+    return ss.str();
 }
 
-std::string IntToHexString(uint16_t in)
+std::string format_vid_pid(uint16_t vid, uint16_t pid)
 {
-    std::stringstream sstream;
-    sstream << "0x" << std::hex << std::setw(4) << std::setfill('0') << in;
-
-    return sstream.str();
-};
+    std::stringstream ss;
+    ss << "(VID:" << to_hex_string(vid) << " PID:" << to_hex_string(pid) << ")";
+    return ss.str();
+}
 
 class GamepadManager
 {
@@ -74,20 +69,19 @@ public:
         if (it != m_gamepads.end())
             return;
 
-        std::string name("Generic Xbox Gamepad");
-        std::string vidpid("(VID:0x0000 PID:0x0000)");
+        std::string name;
+        std::string vidpid;
 
         RawGameController rawController = RawGameController::FromGameController(gamepad);
         if (rawController)
         {
-            name = WStringToString(rawController.DisplayName().c_str());
-
-            vidpid.clear();
-            vidpid.append("(VID:")
-                .append(IntToHexString(rawController.HardwareVendorId()))
-                .append(" PID:")
-                .append(IntToHexString(rawController.HardwareProductId()))
-                .append(")");
+            name = winrt::to_string(rawController.DisplayName());
+            vidpid = format_vid_pid(rawController.HardwareVendorId(), rawController.HardwareProductId());
+        }
+        else
+        {
+            name = "Generic Xbox Gamepad";
+            vidpid = format_vid_pid(0, 0);
         }
 
         m_gamepads.emplace_back(GamepadWithButtonState { gamepad, name, 0 });

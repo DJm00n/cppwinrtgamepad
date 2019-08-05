@@ -12,6 +12,7 @@
 #include <mutex>
 #include <chrono>
 #include <codecvt>
+#include <functional>
 
 using namespace winrt::Windows::Foundation;
 using namespace winrt::Windows::Gaming::Input;
@@ -50,8 +51,8 @@ class GamepadManager
 public:
     GamepadManager()
     {
-        m_AddedRevoker = Gamepad::GamepadAdded(winrt::auto_revoke, bind(&GamepadManager::OnGamepadAdded, this, std::placeholders::_1, std::placeholders::_2));
-        m_RemovedRevoker = Gamepad::GamepadRemoved(winrt::auto_revoke, bind(&GamepadManager::OnGamepadRemoved, this, std::placeholders::_1, std::placeholders::_2));
+        m_AddedRevoker = Gamepad::GamepadAdded(winrt::auto_revoke, std::bind(&GamepadManager::OnGamepadAdded, this, std::placeholders::_1, std::placeholders::_2));
+        m_RemovedRevoker = Gamepad::GamepadRemoved(winrt::auto_revoke, std::bind(&GamepadManager::OnGamepadRemoved, this, std::placeholders::_1, std::placeholders::_2));
 
         Collections::IVectorView<Gamepad> gamepads = Gamepad::Gamepads();
         for (const Gamepad& gamepad : gamepads)

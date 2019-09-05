@@ -10,6 +10,7 @@
 #include <mutex>
 #include <chrono>
 #include <functional>
+#include <atomic>
 
 using namespace winrt::Windows::Foundation;
 using namespace winrt::Windows::Gaming::Input;
@@ -123,7 +124,9 @@ public:
     }
 };
 
-int main()
+std::atomic_bool stopGamepadThread = false;
+
+void GamepadThread()
 {
     using namespace std::chrono_literals;
 
@@ -133,6 +136,9 @@ int main()
 
     while (true)
     {
+        if (stopGamepadThread)
+            return;
+
         gamepads.Update();
         std::this_thread::sleep_for(100ms);
     }

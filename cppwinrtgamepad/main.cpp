@@ -1,4 +1,4 @@
-#include "pch.h"
+﻿#include "pch.h"
 
 #include <windows.h>
 #include <stdlib.h>
@@ -71,12 +71,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     wc.lpszMenuName = nullptr;
-    wc.lpszClassName = L"GamingInputExampleClass";
+    wc.lpszClassName = "GamingInputExampleClass";
     wc.hIconSm = LoadIcon(nullptr, IDI_APPLICATION);
 
     if (!RegisterClassEx(&wc))
     {
-        MessageBox(nullptr, L"Window Registration Failed!", L"Error!",
+        MessageBox(nullptr, "Window Registration Failed!", "Error!",
             MB_ICONEXCLAMATION | MB_OK);
         return 0;
     }
@@ -84,14 +84,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     hwnd = CreateWindowEx(
         WS_EX_CLIENTEDGE,
         wc.lpszClassName,
-        L"Windows.Gaming.Input Example",
+        "Windows.Gaming.Input Example",
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, 240, 120,
         nullptr, nullptr, hInstance, nullptr);
 
     if (hwnd == nullptr)
     {
-        MessageBox(nullptr, L"Window Creation Failed!", L"Error!",
+        MessageBox(nullptr, "Window Creation Failed!", "Error!",
             MB_ICONEXCLAMATION | MB_OK);
         return 0;
     }
